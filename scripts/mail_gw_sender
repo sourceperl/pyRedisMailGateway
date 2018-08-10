@@ -1,0 +1,51 @@
+#!/usr/bin/env python3
+
+from configparser import ConfigParser
+import os
+import json
+import redis
+import smtplib
+from email.mime.text import MIMEText
+
+# read config
+cnf = ConfigParser()
+cnf.read(os.path.expanduser('~/.mail_gateway_config'))
+# imap infos
+smtp_host = cnf.get("smtp", "host")
+smtp_port = cnf.get("smtp", "port")
+smtp_username = cnf.get("smtp", "username")
+smtp_password = cnf.get("smtp", "password")
+smtp_sender = smtp_username
+
+
+def send_mail(to_address, from_address="", subject="", body=""):
+    # params
+    if not from_address:
+        from_address = smtp_sender
+    # connect and login
+    stp = smtplib.SMTP_SSL(smtp_host, smtp_port)
+    stp.login(smtp_username, smtp_password)
+    # format mail
+    msg = MIMEText(body)
+    msg["Subject"] = subject
+    msg["From"] = from_address
+    msg["To"] = to_address
+    # send
+    stp.sendmail(from_address, to_address, msg.as_string())
+    stp.quit()
+
+# subscribe to redis publish channel
+r = redis.StrictRedis()
+ps = r.pubsub()
+ps.subscribe(["email:send"])
+
+# wait for email to send
+for item in ps.listen():
+    if item["type"] == "message":
+        try:
+            pub_d = json.loads(item["data"].decode())
+            send_mail(to_address=pub_d["to"], from_address=pub_d.get("from"),
+                      subject=pub_d.get("subject", ""), body=pub_d.get("body", ""))
+            print("send")
+        except:
+            print("error")

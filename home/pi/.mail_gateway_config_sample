@@ -1,0 +1,10 @@
+[imap]
+host = imap.free.fr
+port = 993
+username = <username>
+password = <password>
+[smtp]
+host = smtp.free.fr
+port = 465
+username = <username@free.fr>
+password = <password>

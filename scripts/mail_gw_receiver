@@ -1,0 +1,46 @@
+#!/usr/bin/env python3
+
+from configparser import ConfigParser
+import json
+import os
+import redis
+import time
+from imbox import Imbox
+
+# read config
+cnf = ConfigParser()
+cnf.read(os.path.expanduser('~/.mail_gateway_config'))
+# imap infos
+imap_host = cnf.get("imap", "host")
+imap_port = cnf.get("imap", "port")
+imap_username = cnf.get("imap", "username")
+imap_password = cnf.get("imap", "password")
+
+r = redis.StrictRedis()
+
+while True:
+    # do IMAP request
+    with Imbox(imap_host,
+               port=imap_port,
+               username=imap_username,
+               password=imap_password,
+               ssl=True,
+               ssl_context=None,
+               starttls=False) as imbox:
+        # retrieve message
+        for uid, msg in imbox.messages(unread=True):
+            # extract sender email
+            sender = msg.sent_from[0]['email']
+            # body: extract first line
+            try:
+                body = msg.body['plain'][0].split('\n')[0].strip()
+            except:
+                body = ""
+            # notify
+            js_str = json.dumps(dict(date=msg.date, email=sender, subject=msg.subject, body=body))
+            print(js_str)
+            r.publish("email:receive", js_str)
+            # mark message as read
+            imbox.mark_seen(uid)
+    # wait for next check
+    time.sleep(60.0)
