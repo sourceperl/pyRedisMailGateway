@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 
 from configparser import ConfigParser
+import logging
 import os
 import json
 import redis
 import smtplib
+import traceback
 from email.mime.text import MIMEText
 
 # read config
@@ -18,21 +20,29 @@ smtp_password = cnf.get("smtp", "password")
 smtp_sender = smtp_username
 
 
-def send_mail(to_address, from_address="", subject="", body=""):
+def send_mail(to_addrs, subject="", body=""):
     # params
-    if not from_address:
-        from_address = smtp_sender
+    from_addr = smtp_sender
+    l_address = []
+    if isinstance(to_addrs, str):
+        l_address.append(to_addrs)
+    elif isinstance(to_addrs, (list, tuple)):
+        l_address = list(to_addrs)
     # connect and login
     stp = smtplib.SMTP_SSL(smtp_host, smtp_port)
     stp.login(smtp_username, smtp_password)
     # format mail
     msg = MIMEText(body)
     msg["Subject"] = subject
-    msg["From"] = from_address
-    msg["To"] = to_address
+    msg["From"] = from_addr
+    msg["To"] = ", ".join(l_address)
     # send
-    stp.sendmail(from_address, to_address, msg.as_string())
+    send_status = stp.sendmail(from_addr, to_addrs, msg.as_string())
+    logging.debug("SMTP status %s" % send_status)
     stp.quit()
+
+# logging setup
+logging.basicConfig(format="%(asctime)s %(message)s", level=logging.DEBUG)
 
 # subscribe to redis publish channel
 r = redis.StrictRedis()
@@ -44,8 +54,7 @@ for item in ps.listen():
     if item["type"] == "message":
         try:
             pub_d = json.loads(item["data"].decode())
-            send_mail(to_address=pub_d["to"], from_address=pub_d.get("from"),
-                      subject=pub_d.get("subject", ""), body=pub_d.get("body", ""))
-            print("send")
-        except:
-            print("error")
+            logging.debug("send mail to %s" % pub_d["to"])
+            send_mail(to_addrs=pub_d["to"], subject=pub_d.get("subject", ""), body=pub_d.get("body", ""))
+        except Exception:
+            logging.error(traceback.format_exc())
