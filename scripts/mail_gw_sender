@@ -8,6 +8,8 @@ import redis
 import smtplib
 import traceback
 from email.mime.text import MIMEText
+from html.parser import HTMLParser
+from html5lib.sanitizer import HTMLSanitizerMixin
 
 # read config
 cnf = ConfigParser()
@@ -18,6 +20,27 @@ smtp_port = cnf.get("smtp", "port")
 smtp_username = cnf.get("smtp", "username")
 smtp_password = cnf.get("smtp", "password")
 smtp_sender = smtp_username
+
+
+# some class
+class TestHTMLParser(HTMLParser):
+    def __init__(self, *args, **kwargs):
+        HTMLParser.__init__(self, *args, **kwargs)
+        self.elements = set()
+
+    def handle_starttag(self, tag, attrs):
+        self.elements.add(tag)
+
+    def handle_endtag(self, tag):
+        self.elements.add(tag)
+
+
+# some function
+def is_html(text):
+    elements = set(HTMLSanitizerMixin.acceptable_elements)
+    parser = TestHTMLParser()
+    parser.feed(text)
+    return True if parser.elements.intersection(elements) else False
 
 
 def send_mail(to_addrs, subject="", body=""):
@@ -31,8 +54,8 @@ def send_mail(to_addrs, subject="", body=""):
     # connect and login
     stp = smtplib.SMTP_SSL(smtp_host, smtp_port)
     stp.login(smtp_username, smtp_password)
-    # format mail
-    msg = MIMEText(body)
+    # format mail (auto detect html type)
+    msg = MIMEText(body, 'html' if is_html(body) else 'plain')
     msg["Subject"] = subject
     msg["From"] = from_addr
     msg["To"] = ", ".join(l_address)
@@ -41,20 +64,22 @@ def send_mail(to_addrs, subject="", body=""):
     logging.debug("SMTP status %s" % send_status)
     stp.quit()
 
-# logging setup
-logging.basicConfig(format="%(asctime)s %(message)s", level=logging.DEBUG)
 
-# subscribe to redis publish channel
-r = redis.StrictRedis()
-ps = r.pubsub()
-ps.subscribe(["email:send"])
+if __name__ == '__main__':
+    # logging setup
+    logging.basicConfig(format="%(asctime)s %(message)s", level=logging.DEBUG)
 
-# wait for email to send
-for item in ps.listen():
-    if item["type"] == "message":
-        try:
-            pub_d = json.loads(item["data"].decode())
-            logging.debug("send mail to %s" % pub_d["to"])
-            send_mail(to_addrs=pub_d["to"], subject=pub_d.get("subject", ""), body=pub_d.get("body", ""))
-        except Exception:
-            logging.error(traceback.format_exc())
+    # subscribe to redis publish channel
+    r = redis.StrictRedis()
+    ps = r.pubsub()
+    ps.subscribe(["mail_gw:msg:send"])
+
+    # wait for email to send
+    for item in ps.listen():
+        if item["type"] == "message":
+            try:
+                pub_d = json.loads(item["data"].decode())
+                logging.debug("send mail to %s" % pub_d["to"])
+                send_mail(to_addrs=pub_d["to"], subject=pub_d.get("subject", ""), body=pub_d.get("body", ""))
+            except Exception:
+                logging.error(traceback.format_exc())

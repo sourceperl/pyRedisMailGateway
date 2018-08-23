@@ -108,3 +108,6 @@ venv.bak/
 
 # Secret file
 home/pi/.mail_gateway_config
+
+# Lab
+lab/

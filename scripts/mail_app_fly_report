@@ -1,0 +1,59 @@
+#!/usr/bin/env python3
+
+import argparse
+import json
+import redis
+import subprocess
+import logging
+from jinja2 import Template
+
+# some const
+FLY_TEMPLATE = Template("""
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Flyspray report</title>
+  </head>
+  <body>
+    <table style="background-color:#e6f5ff;" cellspacing="10">
+    <tr>
+      <th>Affaire</th>
+      <th>OT DTS</th>
+      <th>Avis DTS</th>
+      <th>OT secteur</th>
+      <th>Avis secteur</th>
+    </tr>
+    {% for item in items %}
+    <tr>
+       <td align="left">{{item.title}}</td>
+       <td align="center">{{item.ot_dts}}</td>
+       <td align="center">{{item.avis_dts}}</td>
+       <td align="center">{{item.ot_secteur}}</td>
+       <td align="center">{{item.avis_secteur}}</td>
+    </tr>
+    {% endfor %}
+    </table>
+  </body>
+</html>""")
+
+
+# main program
+if __name__ == '__main__':
+    # logging setup
+    logging.basicConfig(format='%(asctime)s %(message)s')
+
+    # parse args
+    parser = argparse.ArgumentParser()
+    parser.add_argument("email", type=str)
+    parser.add_argument("-a", "--area", default="ne", choices=["n", "e", "ne"])
+    args = parser.parse_args()
+
+    # redis setup
+    r = redis.StrictRedis(host="192.168.0.70")
+
+    # request flyspray data
+    tasks = list(json.loads(r.get("rx:bur:flyspray_rss").decode()))
+    # format message
+    msg_body = FLY_TEMPLATE.render(items=tasks)
+    # send report
+    subprocess.call(["mail_app_send", args.email, "-s", "rapport flyspray", "-b", msg_body])

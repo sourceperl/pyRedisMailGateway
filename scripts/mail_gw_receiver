@@ -19,47 +19,51 @@ imap_port = cnf.get("imap", "port")
 imap_username = cnf.get("imap", "username")
 imap_password = cnf.get("imap", "password")
 
-# logging setup
-logging.basicConfig(format="%(asctime)s %(message)s", level=logging.DEBUG)
 
-# create redis
-r = redis.StrictRedis()
+if __name__ == '__main__':
+    # logging setup
+    logging.basicConfig(format="%(asctime)s %(message)s")
 
-while True:
-    try:
-        # do IMAP request
-        with Imbox(imap_host,
-                   port=imap_port,
-                   username=imap_username,
-                   password=imap_password,
-                   ssl=True,
-                   ssl_context=None,
-                   starttls=False) as imbox:
-            # retrieve message
-            for uid, msg in imbox.messages(unread=True):
-                # extract sender email
-                sender = msg.sent_from[0]['email']
-                # body as plain text: extract first line
-                try:
-                    body = msg.body['plain'][0].split('\n')[0].strip()
-                except:
-                    body = ""
-                # extract attachments
-                files = []
-                for attach in msg.attachments:
-                    d = {"filename": attach["filename"],
-                         "content-type": attach["content-type"],
-                         "size": attach["size"],
-                         "content": base64.encodebytes(attach["content"].read()).decode('ascii')}
-                    files.append(d)
-                # notify
-                d_pub = dict(date=msg.date, email=sender, subject=msg.subject, body=body, attachments=files)
-                s_pub = json.dumps(d_pub)
-                logging.debug(s_pub)
-                r.publish("email:receive", s_pub)
-                # mark message as read
-                imbox.mark_seen(uid)
-    except Exception:
-        logging.error(traceback.format_exc())
-    # wait for next check
-    time.sleep(60.0)
+    # create redis
+    r = redis.StrictRedis()
+
+    while True:
+        try:
+            # do IMAP request
+            with Imbox(imap_host,
+                       port=imap_port,
+                       username=imap_username,
+                       password=imap_password,
+                       ssl=True,
+                       ssl_context=None,
+                       starttls=False) as imbox:
+                # retrieve message
+                for uid, msg in imbox.messages(unread=True):
+                    # mark message as read
+                    imbox.mark_seen(uid)
+                    # extract sender email
+                    sender = msg.sent_from[0]["email"]
+                    # mail subject field
+                    subject = msg.subject.strip()
+                    # body as plain text
+                    try:
+                        body = msg.body["plain"][0]
+                    except:
+                        body = ""
+                    # extract attachments
+                    files = []
+                    for attach in msg.attachments:
+                        d = {"filename": attach["filename"],
+                             "content-type": attach["content-type"],
+                             "size": attach["size"],
+                             "content": base64.encodebytes(attach["content"].read()).decode('ascii')}
+                        files.append(d)
+                    # notify
+                    d_pub = {"date": msg.date, "from": sender, "subject": subject, "body": body, "attachments": files}
+                    s_pub = json.dumps(d_pub)
+                    logging.debug("publish %s" % s_pub)
+                    r.publish("mail_gw:msg:receive", s_pub)
+        except Exception:
+            logging.error(traceback.format_exc())
+        # wait for next check
+        time.sleep(30.0)
