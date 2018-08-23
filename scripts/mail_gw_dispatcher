@@ -49,6 +49,6 @@ if __name__ == "__main__":
                     logging.info("process menu ESAT (request by %s)" % sender_adr)
                 # no trigger found: subject not understood
                 else:
-                    logging.info("no trigger for subject \"%s\"" % subject)
+                    logging.info("no trigger for subject \"%s\" (request by %s)" % (subject, sender_adr))
             except Exception:
                 logging.error(traceback.format_exc())
