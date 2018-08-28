@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import base64
 from configparser import ConfigParser
 import logging
 import os
@@ -7,13 +8,16 @@ import json
 import redis
 import smtplib
 import traceback
+from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from email.mime.base import MIMEBase
+from email import encoders
 from html.parser import HTMLParser
 from html5lib.sanitizer import HTMLSanitizerMixin
 
 # read config
 cnf = ConfigParser()
-cnf.read(os.path.expanduser('~/.mail_gateway_config'))
+cnf.read(os.path.expanduser("~/.mail_gateway_config"))
 # imap infos
 smtp_host = cnf.get("smtp", "host")
 smtp_port = cnf.get("smtp", "port")
@@ -43,7 +47,7 @@ def is_html(text):
     return True if parser.elements.intersection(elements) else False
 
 
-def send_mail(to_addrs, subject="", body=""):
+def send_mail(to_addrs, subject="", body="", atts=None):
     # params
     from_addr = smtp_sender
     l_address = []
@@ -51,21 +55,32 @@ def send_mail(to_addrs, subject="", body=""):
         l_address.append(to_addrs)
     elif isinstance(to_addrs, (list, tuple)):
         l_address = list(to_addrs)
+    if atts is None:
+        atts = []
     # connect and login
     stp = smtplib.SMTP_SSL(smtp_host, smtp_port)
     stp.login(smtp_username, smtp_password)
-    # format mail (auto detect html type)
-    msg = MIMEText(body, 'html' if is_html(body) else 'plain')
+    # format mail
+    msg = MIMEMultipart()
     msg["Subject"] = subject
     msg["From"] = from_addr
     msg["To"] = ", ".join(l_address)
+    # add body (auto detect html type)
+    msg.attach(MIMEText(body, "html" if is_html(body) else "plain"))
+    # add attachments
+    for a_name, a_content in atts:
+        part = MIMEBase("application", "octet-stream")
+        part.set_payload(a_content)
+        encoders.encode_base64(part)
+        part.add_header("Content-Disposition", "attachment; filename=\"%s\"" % a_name)
+        msg.attach(part)
     # send
     send_status = stp.sendmail(from_addr, to_addrs, msg.as_string())
     logging.debug("SMTP status %s" % send_status)
     stp.quit()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # logging setup
     logging.basicConfig(format="%(asctime)s %(message)s", level=logging.DEBUG)
 
@@ -80,6 +95,11 @@ if __name__ == '__main__':
             try:
                 pub_d = json.loads(item["data"].decode())
                 logging.debug("send mail to %s" % pub_d["to"])
-                send_mail(to_addrs=pub_d["to"], subject=pub_d.get("subject", ""), body=pub_d.get("body", ""))
+                # format attachments
+                atts = []
+                for filename, content in pub_d.get("atts", []):
+                    atts.append((filename, base64.b64decode(content)))
+                # send
+                send_mail(pub_d["to"], subject=pub_d.get("subject", ""), body=pub_d.get("body", ""), atts=atts)
             except Exception:
                 logging.error(traceback.format_exc())

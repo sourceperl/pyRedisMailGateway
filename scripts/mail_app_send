@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
+import base64
 import json
 import re
 import redis
@@ -41,8 +42,15 @@ if __name__ == '__main__':
     parser.add_argument("email", type=EmailType("RFC5322"))
     parser.add_argument("-s", "--subject", type=str, default="")
     parser.add_argument("-b", "--body", type=str, default="")
+    parser.add_argument("-f", "--file", type=argparse.FileType("rb"), nargs="+")
     args = parser.parse_args()
 
+    # format attachments
+    l_atts = []
+    if args.file:
+        for f in args.file:
+            l_atts.append((f.name, base64.b64encode(f.read()).decode("ascii")))
+
     # send report
-    d_pub = dict(to=args.email, subject=args.subject, body=args.body)
+    d_pub = dict(to=args.email, subject=args.subject, body=args.body, atts=l_atts)
     redis.StrictRedis().publish("mail_gw:msg:send", json.dumps(d_pub))
