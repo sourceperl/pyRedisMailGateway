@@ -1,0 +1,32 @@
+#!/usr/bin/env python3
+
+import argparse
+import subprocess
+import logging
+
+# to use this ensure to run "ssh-copy-id pi@192.168.0.60" before
+
+# some const
+SCP_TARGET = "pi@192.168.0.60:\"/home/pi/dashboard/pdf_reglementation/Menu ESAT Loos.pdf\""
+
+# main program
+if __name__ == '__main__':
+    # logging setup
+    logging.basicConfig(format='%(asctime)s %(message)s')
+
+    # parse args
+    parser = argparse.ArgumentParser()
+    parser.add_argument("email", type=str)
+    parser.add_argument("-f", "--file", type=argparse.FileType("rb"), nargs="+")
+    args = parser.parse_args()
+
+    # format attachments
+    if args.file:
+        for f in args.file:
+            if f.name.endswith('.pdf'):
+                # do copy
+                ret_code = subprocess.call(["scp", f.name, SCP_TARGET])
+                # send report
+                msg_body = "<strong>Copie du fichier OK</strong><br><br>"
+                msg_body += "<i>sys info: scp report code is %s</i>" % ret_code
+                subprocess.call(["mail_app_send", args.email, "-s", "menu ESAT: rapport d'ajout", "-b", msg_body])

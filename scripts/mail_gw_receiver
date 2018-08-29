@@ -59,7 +59,7 @@ if __name__ == '__main__':
                              "content": base64.encodebytes(attach["content"].read()).decode('ascii')}
                         files.append(d)
                     # notify
-                    d_pub = {"date": msg.date, "from": sender, "subject": subject, "body": body, "attachments": files}
+                    d_pub = {"date": msg.date, "from": sender, "subject": subject, "body": body, "atts": files}
                     s_pub = json.dumps(d_pub)
                     logging.debug("publish %s" % s_pub)
                     r.publish("mail_gw:msg:receive", s_pub)

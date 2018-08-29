@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
 
+import base64
 from difflib import get_close_matches
 import json
+import os
 import subprocess
+import shutil
+import tempfile
 import redis
 import logging
 import traceback
@@ -31,11 +35,23 @@ if __name__ == "__main__":
     # listen loop
     for item in ps.listen():
         if item["type"] == "message":
+            atts_dir = ""
+            l_att_files = []
             try:
                 d_r = json.loads(item["data"].decode())
+                # email standard fields
                 sender_adr = d_r["from"]
                 subject = d_r["subject"].strip().lower()
                 body = d_r["body"].strip()
+                # email attachments
+                if d_r["atts"]:
+                    # create tmp dir
+                    atts_dir = tempfile.mkdtemp()
+                    # populate it with all attachments
+                    for att in d_r["atts"]:
+                        tmp_file = os.path.join(atts_dir, att["filename"])
+                        l_att_files.append(tmp_file)
+                        open(tmp_file, "wb").write(base64.b64decode(att["content"]))
                 # trigger for echo request
                 if get_close_matches(subject, ["test echo", "test ping"], cutoff=0.80):
                     logging.info("process echo request (request by %s)" % sender_adr)
@@ -45,10 +61,19 @@ if __name__ == "__main__":
                     logging.info("process flyspray report (request by %s)" % sender_adr)
                     run_mail_app("mail_app_fly_report", sender_adr)
                 # trigger for app menu ESAT
-                elif get_close_matches(subject, ["menu esat", "ajout menu"], cutoff=0.75):
+                elif get_close_matches(subject, ["menu esat"], cutoff=0.75):
                     logging.info("process menu ESAT (request by %s)" % sender_adr)
+                    # this app need attachments
+                    if atts_dir:
+                        run_mail_app("mail_app_menu_esat", sender_adr, "-f", ",".join(l_att_files))
+                    else:
+                        run_mail_app("mail_app_send", sender_adr, "-s", "menu ESAT: pièce jointe manquante")
                 # no trigger found: subject not understood
                 else:
                     logging.info("no trigger for subject \"%s\" (request by %s)" % (subject, sender_adr))
             except Exception:
                 logging.error(traceback.format_exc())
+            finally:
+                # remove attachments dir
+                if atts_dir:
+                    shutil.rmtree(atts_dir, ignore_errors=True)
