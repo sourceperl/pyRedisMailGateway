@@ -1,0 +1,35 @@
+#!/usr/bin/env python3
+
+import argparse
+import os
+import subprocess
+import logging
+
+# to use this ensure to run "ssh-copy-id pi@192.168.0.60" before
+
+# some const
+SCP_TARGET = "pi@192.168.0.60:\"/home/pi/dashboard/Document_affichage/\""
+
+# main program
+if __name__ == '__main__':
+    # logging setup
+    logging.basicConfig(format='%(asctime)s %(message)s')
+
+    # parse args
+    parser = argparse.ArgumentParser()
+    parser.add_argument("email", type=str)
+    parser.add_argument("file", type=argparse.FileType("rb"), nargs="+")
+    args = parser.parse_args()
+
+    # attachments loop
+    d_scp_status = {}
+    for f in args.file:
+        if f.name.endswith(".pdf"):
+            # do copy
+            d_scp_status[os.path.basename(f.name)] = subprocess.call(["scp", f.name, SCP_TARGET])
+
+    # send report
+    msg_body = "<strong>Copie des fichiers réalisée</strong><br><br>"
+    for fname in d_scp_status:
+        msg_body += "<i>sys info: scp reports is %s for file %s</i><br>" % (d_scp_status[fname], fname)
+    subprocess.call(["mail_app_send", args.email, "-s", "A4 de com: rapport d'ajout", "-b", msg_body])

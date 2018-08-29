@@ -17,7 +17,7 @@ if __name__ == '__main__':
     # parse args
     parser = argparse.ArgumentParser()
     parser.add_argument("email", type=str)
-    parser.add_argument("-f", "--file", type=argparse.FileType("rb"), nargs="+")
+    parser.add_argument("file", type=argparse.FileType("rb"), nargs="+")
     args = parser.parse_args()
 
     # format attachments
@@ -27,6 +27,6 @@ if __name__ == '__main__':
                 # do copy
                 ret_code = subprocess.call(["scp", f.name, SCP_TARGET])
                 # send report
-                msg_body = "<strong>Copie du fichier OK</strong><br><br>"
+                msg_body = "<strong>Copie du fichier réalisée</strong><br><br>"
                 msg_body += "<i>sys info: scp report code is %s</i>" % ret_code
                 subprocess.call(["mail_app_send", args.email, "-s", "menu ESAT: rapport d'ajout", "-b", msg_body])

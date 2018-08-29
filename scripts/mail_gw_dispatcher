@@ -60,12 +60,20 @@ if __name__ == "__main__":
                 elif get_close_matches(subject, ["flyspray"], cutoff=0.75):
                     logging.info("process flyspray report (request by %s)" % sender_adr)
                     run_mail_app("mail_app_fly_report", sender_adr)
+                # trigger for app A4 de com
+                elif get_close_matches(subject, ["A4 de com"], cutoff=0.75):
+                    logging.info("process A4 de com (request by %s)" % sender_adr)
+                    # this app need attachments
+                    if atts_dir:
+                        run_mail_app("mail_app_a4_com", sender_adr, *l_att_files)
+                    else:
+                        run_mail_app("mail_app_send", sender_adr, "-s", "A4 de com: pièce jointe manquante")
                 # trigger for app menu ESAT
                 elif get_close_matches(subject, ["menu esat"], cutoff=0.75):
                     logging.info("process menu ESAT (request by %s)" % sender_adr)
                     # this app need attachments
                     if atts_dir:
-                        run_mail_app("mail_app_menu_esat", sender_adr, "-f", ",".join(l_att_files))
+                        run_mail_app("mail_app_menu_esat", sender_adr, *l_att_files)
                     else:
                         run_mail_app("mail_app_send", sender_adr, "-s", "menu ESAT: pièce jointe manquante")
                 # no trigger found: subject not understood
