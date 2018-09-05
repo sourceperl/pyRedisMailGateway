@@ -4,11 +4,13 @@ import argparse
 import os
 import subprocess
 import logging
+import redis
 
 # to use this ensure to run "ssh-copy-id pi@192.168.0.60" before
 
 # some const
-SCP_TARGET = "pi@192.168.0.60:\"/home/pi/dashboard/carousel_img/\""
+IP_DASHBOARD = "192.168.0.60"
+SCP_TARGET = "pi@%s:\"/home/pi/dashboard/carousel_upload/\"" % IP_DASHBOARD
 
 # main program
 if __name__ == '__main__':
@@ -27,6 +29,9 @@ if __name__ == '__main__':
         if f.name.endswith(".pdf"):
             # do copy
             d_scp_status[os.path.basename(f.name)] = subprocess.call(["scp", f.name, SCP_TARGET])
+
+    # notify change to dashboard
+    redis.StrictRedis(host=IP_DASHBOARD).publish("dashboard:trigger", "carousel_update")
 
     # send report
     msg_body = "<strong>Copie des fichiers réalisée</strong><br><br>"
