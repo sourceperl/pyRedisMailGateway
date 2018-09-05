@@ -7,7 +7,7 @@ import logging
 # to use this ensure to run "ssh-copy-id pi@192.168.0.60" before
 
 # some const
-SCP_TARGET = "pi@192.168.0.60:\"/home/pi/dashboard/pdf_reglementation/Menu ESAT Loos.pdf\""
+SCP_TARGET = "pi@192.168.0.60:\"/home/pi/dashboard/reglement_doc/Menu ESAT Loos.pdf\""
 
 # main program
 if __name__ == '__main__':
