@@ -52,7 +52,7 @@ if __name__ == '__main__':
     r = redis.StrictRedis(host="192.168.0.70")
 
     # request flyspray data
-    tasks = list(json.loads(r.get("rx:bur:flyspray_rss").decode()))
+    tasks = list(json.loads(r.get("rx:bur:flyspray_rss_nord").decode()))
     # format message
     msg_body = FLY_TEMPLATE.render(items=tasks)
     # send report
